@@ -3,7 +3,7 @@ import { getFirestore } from "firebase/firestore";
 
 /**
  * Firebase configuration
- * Uses NEXT_PUBLIC_* so it works on Vercel
+ * Uses NEXT_PUBLIC_* variables (required for Vercel + browser)
  */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -15,7 +15,7 @@ const firebaseConfig = {
 };
 
 /**
- * Prevent Firebase re-initialization (important for Next.js & Vercel)
+ * ✅ IMPORTANT: app MUST be exported
  */
 export const app =
   getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
