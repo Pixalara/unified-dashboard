@@ -1,136 +1,146 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { auth } from "@/lib/firebase";
-import { db } from "@/lib/firebase";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { doc, updateDoc } from "firebase/firestore";
+import { updatePassword } from "firebase/auth"; // Import auth update
+import { db, auth } from "@/lib/firebase";
+import { Save, User, Lock, Mail, Phone } from "lucide-react";
 
-export default function AdminSettingsPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+export default function SettingsPage() {
+  const { user, userData } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    newPassword: "" 
+  });
 
-  // 🔐 Auth listener
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) return;
+    if (userData) {
+      setFormData(prev => ({
+        ...prev,
+        name: userData.name || "",
+        email: userData.email || "",
+        phone: userData.phone || ""
+      }));
+    }
+  }, [userData]);
 
-      setUser(u);
-      setEmail(u.email || "");
-
-      const ref = doc(db, "admins", u.uid);
-      const snap = await getDoc(ref);
-
-      if (snap.exists()) {
-        const data = snap.data();
-        setName(data.name || "");
-        setPhone(data.phone || "");
-      }
-
-      setLoading(false);
-    });
-
-    return () => unsub();
-  }, []);
-
-  // 💾 SAVE PROFILE (FIXED)
-  const handleSave = async () => {
-    if (!user) return;
-
-    setSaving(true);
-    setError("");
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMsg("");
 
     try {
-      await setDoc(
-        doc(db, "admins", user.uid),
-        {
-          name,
-          email: user.email,
-          phone,
-          role: "admin",
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true } // 🔥 CRITICAL FIX
-      );
+      // 1. Update Firestore Profile
+      if (user) {
+        await updateDoc(doc(db, "admins", user.uid), {
+          name: formData.name,
+          phone: formData.phone
+        });
+      }
 
-      alert("Profile updated successfully ✅");
-    } catch (err: any) {
-      console.error(err);
-      setError("Failed to save changes");
+      // 2. Update Password (if provided)
+      if (formData.newPassword && user) {
+        await updatePassword(user, formData.newPassword);
+      }
+
+      setMsg("✅ Profile updated successfully!");
+    } catch (error: any) {
+      console.error(error);
+      setMsg("❌ Error: " + error.message);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="text-white p-6">Loading settings...</div>
-    );
-  }
-
   return (
-    <div className="p-6 text-white max-w-xl">
-      <h1 className="text-2xl font-bold mb-1">Settings</h1>
-      <p className="text-gray-400 mb-6">
-        Admin profile configuration
-      </p>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-white">Settings</h1>
+        <p className="text-gray-400 text-sm">Manage your admin profile & security</p>
+      </div>
 
-      <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-xl shadow-xl">
-        {error && (
-          <p className="text-red-400 mb-3">{error}</p>
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8">
+        {msg && (
+          <div className={`p-3 mb-6 rounded-lg text-sm text-center ${msg.includes("Error") ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400"}`}>
+            {msg}
+          </div>
         )}
 
-        <label className="block mb-4">
-          <span className="text-sm text-gray-300">
-            Admin Name
-          </span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full p-3 rounded bg-black border border-gray-700 text-white"
-          />
-        </label>
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Name */}
+          <div className="space-y-2">
+            <label className="text-xs uppercase font-bold text-gray-500">Full Name</label>
+            <div className="flex items-center bg-black border border-zinc-800 rounded-lg px-3 py-2">
+              <User size={18} className="text-gray-500 mr-3" />
+              <input 
+                type="text" 
+                className="bg-transparent w-full text-white outline-none"
+                value={formData.name}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+              />
+            </div>
+          </div>
 
-        <label className="block mb-4">
-          <span className="text-sm text-gray-300">
-            Email
-          </span>
-          <input
-            value={email}
-            disabled
-            className="mt-1 w-full p-3 rounded bg-gray-800 border border-gray-700 text-gray-400"
-          />
-        </label>
+          {/* Email (Read Only) */}
+          <div className="space-y-2">
+            <label className="text-xs uppercase font-bold text-gray-500">Email Address</label>
+            <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 cursor-not-allowed">
+              <Mail size={18} className="text-gray-600 mr-3" />
+              <input 
+                type="email" 
+                disabled
+                className="bg-transparent w-full text-gray-500 outline-none"
+                value={formData.email}
+              />
+            </div>
+          </div>
 
-        <label className="block mb-6">
-          <span className="text-sm text-gray-300">
-            Phone Number
-          </span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="mt-1 w-full p-3 rounded bg-black border border-gray-700 text-white"
-          />
-        </label>
+          {/* Phone */}
+          <div className="space-y-2">
+            <label className="text-xs uppercase font-bold text-gray-500">Phone Number</label>
+            <div className="flex items-center bg-black border border-zinc-800 rounded-lg px-3 py-2">
+              <Phone size={18} className="text-gray-500 mr-3" />
+              <input 
+                type="text" 
+                className="bg-transparent w-full text-white outline-none"
+                value={formData.phone}
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              />
+            </div>
+          </div>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-6 py-3 rounded bg-gradient-to-r from-orange-500 to-pink-500 hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save Changes"}
-        </button>
+          <hr className="border-zinc-800 my-6" />
+
+          {/* New Password */}
+          <div className="space-y-2">
+            <label className="text-xs uppercase font-bold text-blue-400">Set New Password</label>
+            <div className="flex items-center bg-black border border-blue-900/30 rounded-lg px-3 py-2">
+              <Lock size={18} className="text-blue-500 mr-3" />
+              <input 
+                type="password" 
+                placeholder="Leave blank to keep current password"
+                className="bg-transparent w-full text-white outline-none placeholder-zinc-700"
+                value={formData.newPassword}
+                onChange={(e) => setFormData({...formData, newPassword: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <Save size={18} />
+            {loading ? "Saving..." : "Save Changes"}
+          </button>
+        </form>
       </div>
     </div>
   );
