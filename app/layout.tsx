@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 
-export const metadata = {
-  title: "Pixalara Dashboard",
-  description: "Growth School & Job Assistance",
+
+export const metadata: Metadata = {
+  title: "Unified Dashboard",
+  description: "Admin, Student, and Job Seeker Dashboard",
 };
 
 export default function RootLayout({
@@ -12,8 +15,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-black text-white">
-        {children}
+      <body>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
