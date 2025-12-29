@@ -1,10 +1,8 @@
+// lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-/**
- * Firebase configuration
- * Uses NEXT_PUBLIC_* variables (required for Vercel + browser)
- */
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -14,13 +12,9 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-/**
- * ✅ IMPORTANT: app MUST be exported
- */
-export const app =
-  getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// ✅ EXPORT app (THIS WAS MISSING)
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-/**
- * Firestore instance
- */
+// Optional shared exports
+export const auth = getAuth(app);
 export const db = getFirestore(app);
