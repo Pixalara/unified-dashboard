@@ -1,136 +1,234 @@
 "use client";
 
-import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, Loader2, ArrowRight, Sparkles } from "lucide-react";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  onAuthStateChanged 
+} from "firebase/auth"; 
+import { doc, getDoc } from "firebase/firestore"; 
+import { db } from "@/lib/firebase"; 
+import { Lock, Mail, ArrowRight } from "lucide-react"; // ❌ Removed Sparkles import
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const router = useRouter();
+  const auth = getAuth(db.app);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+
+  // 🛡️ ROUTE GUARD
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        await checkRoleAndRedirect(user.uid);
+      } else {
+        setCheckingAuth(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const checkRoleAndRedirect = async (uid: string) => {
+    try {
+        const adminSnap = await getDoc(doc(db, "admins", uid));
+        if (adminSnap.exists()) { router.replace("/admin/dashboard"); return; }
+        const studentSnap = await getDoc(doc(db, "growth_students", uid));
+        if (studentSnap.exists()) { router.replace("/student/dashboard"); return; }
+        const mentorSnap = await getDoc(doc(db, "mentors", uid));
+        if (mentorSnap.exists()) { router.replace("/mentor/dashboard"); return; }
+        const seekerSnap = await getDoc(doc(db, "job_seekers", uid));
+        if (seekerSnap.exists()) { router.replace("/job-seeker/dashboard"); return; }
+        router.replace("/admin/dashboard");
+    } catch (err) {
+        setCheckingAuth(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+    setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if ((await getDoc(doc(db, "admins", user.uid))).exists()) return router.push("/admin/dashboard");
-      if ((await getDoc(doc(db, "growth_students", user.uid))).exists()) return router.push("/student/dashboard");
-      if ((await getDoc(doc(db, "job_seekers", user.uid))).exists()) return router.push("/job-seeker/dashboard");
-      if ((await getDoc(doc(db, "mentors", user.uid))).exists()) return router.push("/mentor/dashboard");
-
-      setError("Role not assigned. Contact Admin.");
+      const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      await checkRoleAndRedirect(userCredential.user.uid);
     } catch (err: any) {
-      console.error(err);
-      setError("Invalid credentials.");
+      if (err.code === 'auth/invalid-credential') setError("Invalid email or password.");
+      else if (err.code === 'auth/user-not-found') setError("No account found.");
+      else setError("Login Failed: " + err.message);
+      setLoading(false);
+    }
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setResetMessage("");
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, formData.email);
+      setResetMessage("✅ Reset link sent! Check your inbox.");
+    } catch (err: any) {
+        setError("Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex bg-black relative overflow-hidden">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-black font-sans selection:bg-purple-500/30 overflow-hidden relative">
       
-      {/* 📱 MOBILE BACKGROUND GLOW (Visible only on mobile) */}
-      <div className="absolute inset-0 lg:hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[80%] h-[40%] bg-blue-600/20 rounded-full blur-[80px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[80%] h-[40%] bg-purple-600/20 rounded-full blur-[80px]" />
+      {/* 🎨 BACKGROUND GLOWS (Subtle & Premium) */}
+      <div className="absolute inset-0 z-0 pointer-events-none">
+         <div className="absolute top-[-20%] left-[-10%] w-[80vw] h-[80vh] bg-blue-900/20 rounded-full blur-[120px] opacity-40"></div>
+         <div className="absolute bottom-[-20%] right-[-10%] w-[80vw] h-[80vh] bg-purple-900/20 rounded-full blur-[120px] opacity-40"></div>
       </div>
 
-      {/* 🎨 LEFT SIDE: Visual Branding (Desktop Only) */}
-      <div className="hidden lg:flex w-1/2 relative bg-zinc-900 overflow-hidden items-center justify-center border-r border-white/5">
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-900/20 via-black to-purple-900/20 z-0"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
-        
-        <div className="relative z-10 text-center px-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-blue-300 text-xs font-medium mb-6">
-            <Sparkles size={14} /> Pixalara Growth School
-          </div>
-          <h1 className="text-5xl font-bold text-white mb-6 leading-tight">
-            Accelerate your <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-              Career Growth
-            </span>
-          </h1>
-          <p className="text-gray-400 text-lg max-w-md mx-auto">
-             One dashboard for learning, upskilling, and landing your dream job.
-          </p>
-        </div>
+      {/* 👈 LEFT SIDE: Marketing */}
+      <div className="w-full lg:w-1/2 relative flex flex-col justify-center items-center p-8 lg:p-12 z-10 lg:min-h-screen pt-20 lg:pt-0">
+         <div className="relative text-center max-w-lg space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            
+            {/* Pill Badge (No Icon) */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-sm text-blue-200 shadow-xl mx-auto">
+                <span className="font-medium tracking-wide">Pixalara Growth School</span>
+            </div>
+            
+            {/* Headline */}
+            <h1 className="text-4xl lg:text-6xl font-bold text-white leading-tight tracking-tight">
+               Accelerate your <br/>
+               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400">
+                 Career Growth
+               </span>
+            </h1>
+            
+            {/* Subtext */}
+            <p className="text-gray-400 text-sm lg:text-lg leading-relaxed max-w-md mx-auto">
+               One dashboard for learning, upskilling, and landing your dream job.
+            </p>
+         </div>
       </div>
 
-      {/* 🔐 RIGHT SIDE: Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-6 lg:p-12 z-10">
-        <div className="w-full max-w-md space-y-8 backdrop-blur-xl bg-black/40 lg:bg-transparent p-6 rounded-2xl border border-white/5 lg:border-none">
-          
-          {/* Mobile Logo (Visible only on mobile to retain branding) */}
-          <div className="lg:hidden text-center mb-4">
-             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider">
-               <Sparkles size={12} /> Pixalara
-             </div>
-          </div>
+      {/* 👉 RIGHT SIDE: Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12 relative z-20 bg-black/0 lg:bg-black">
+         <div className="w-full max-w-md space-y-8">
+            
+            {/* Header */}
+            <div className="text-left">
+               <h2 className="text-3xl font-bold text-white mb-2">
+                 {isResetMode ? "Reset password" : "Welcome back"}
+               </h2>
+               <p className="text-gray-500 text-sm">
+                 {isResetMode ? "Enter email to recover account." : "Please enter your details to sign in."}
+               </p>
+            </div>
 
-          <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-white tracking-tight">Welcome back</h2>
-            <p className="mt-2 text-gray-400">Please enter your details to sign in.</p>
-          </div>
+            {/* Messages */}
+            {error && <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-lg text-sm font-medium">{error}</div>}
+            {resetMessage && <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-4 rounded-lg text-sm font-medium">{resetMessage}</div>}
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
-                {error}
-              </div>
+            {!isResetMode ? (
+                // --- LOGIN FORM ---
+                <form onSubmit={handleSubmit} className="space-y-5">
+                   
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-bold text-gray-500 tracking-widest pl-1">Email</label>
+                      <div className="relative">
+                          <Mail className="absolute left-4 top-3.5 text-gray-500" size={18} />
+                          <input 
+                            type="email" 
+                            required
+                            className="w-full bg-zinc-100 text-black border-none rounded-xl py-3.5 pl-11 pr-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium placeholder:text-gray-400"
+                            placeholder="admin@pixalara.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          />
+                      </div>
+                   </div>
+
+                   <div className="space-y-1.5">
+                      <div className="flex justify-between items-center pl-1">
+                          <label className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Password</label>
+                          <button type="button" onClick={() => setIsResetMode(true)} className="text-xs text-blue-500 hover:text-blue-400 font-medium">Forgot?</button>
+                      </div>
+                      <div className="relative">
+                          <Lock className="absolute left-4 top-3.5 text-gray-500" size={18} />
+                          <input 
+                            type="password" 
+                            required
+                            className="w-full bg-zinc-100 text-black border-none rounded-xl py-3.5 pl-11 pr-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium placeholder:text-gray-400"
+                            placeholder="••••••••"
+                            value={formData.password}
+                            onChange={(e) => setFormData({...formData, password: e.target.value})}
+                          />
+                      </div>
+                   </div>
+
+                   <button 
+                      type="submit" 
+                      disabled={loading}
+                      className="w-full bg-white hover:bg-zinc-200 text-black font-bold text-lg py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 mt-4"
+                   >
+                      {loading ? <span className="opacity-70">Signing In...</span> : <>Sign In <ArrowRight size={20} /></>}
+                   </button>
+                </form>
+            ) : (
+                // --- RESET FORM ---
+                <form onSubmit={handleReset} className="space-y-5">
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase font-bold text-gray-500 tracking-widest pl-1">Registered Email</label>
+                      <div className="relative">
+                          <Mail className="absolute left-4 top-3.5 text-gray-500" size={18} />
+                          <input 
+                            type="email" 
+                            required
+                            className="w-full bg-zinc-100 text-black border-none rounded-xl py-3.5 pl-11 pr-4 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium placeholder:text-gray-400"
+                            placeholder="name@company.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          />
+                      </div>
+                   </div>
+
+                   <button 
+                      type="submit" 
+                      disabled={loading}
+                      className="w-full bg-white hover:bg-zinc-200 text-black font-bold text-lg py-3.5 rounded-xl transition-all"
+                   >
+                      {loading ? "Sending..." : "Send Reset Link"}
+                   </button>
+
+                   <button 
+                      type="button" 
+                      onClick={() => setIsResetMode(false)}
+                      className="w-full text-zinc-500 hover:text-white text-sm py-2 font-medium"
+                   >
+                      Back to Login
+                   </button>
+                </form>
             )}
-
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Email</label>
-              <div className="relative group">
-                <Mail className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-500 transition-colors" size={18} />
-                <input 
-                  type="email" required
-                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all placeholder-zinc-700"
-                  placeholder="name@example.com"
-                  value={email} onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+            
+            <div className="pt-6 text-center">
+                <p className="text-xs text-zinc-600">
+                    No account? <a href="#" className="text-zinc-400 hover:text-white transition-colors">Contact Admin</a>
+                </p>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Password</label>
-                <a href="#" className="text-xs text-blue-500 hover:text-blue-400">Forgot?</a>
-              </div>
-              <div className="relative group">
-                <Lock className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-purple-500 transition-colors" size={18} />
-                <input 
-                  type="password" required
-                  className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-all placeholder-zinc-700"
-                  placeholder="••••••••"
-                  value={password} onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <button 
-              type="submit" disabled={loading}
-              className="w-full bg-white hover:bg-gray-100 text-black font-bold py-3.5 rounded-xl transition-all transform active:scale-[0.98] flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
-            >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : <>Sign In <ArrowRight size={18} /></>}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-gray-500">
-            No account? <a href="#" className="text-white hover:underline">Contact Admin</a>
-          </p>
-        </div>
+         </div>
       </div>
     </div>
   );

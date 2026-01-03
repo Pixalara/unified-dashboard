@@ -6,13 +6,13 @@ import {
   onSnapshot, 
   deleteDoc, 
   doc, 
-  setDoc, // ✅ Imported correctly now
+  setDoc, 
   serverTimestamp 
 } from "firebase/firestore";
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { db } from "@/lib/firebase"; 
-import { Search, Plus, Trash2, Phone, BookOpen, X, Eye, Mail, Lock } from "lucide-react";
+import { Search, Plus, Trash2, Phone, BookOpen, X, Eye, Mail, Lock, LockKeyhole } from "lucide-react";
 import Link from "next/link"; 
 
 interface Student {
@@ -63,12 +63,9 @@ export default function StudentsPage() {
     return `PGS-${year}-${randomNum}`;
   };
 
-  // 🔐 Helper: Create User without logging out Admin
+  // 🔐 Helper 1: Create User without logging out Admin
   const createAuthUser = async (email: string, pass: string) => {
-    // 1. Get current config from the existing DB connection
     const config = db.app.options; 
-    
-    // 2. Initialize a "Secondary" App (Invisible)
     const secondaryAppName = "secondaryApp";
     let secondaryApp: FirebaseApp;
     
@@ -78,13 +75,26 @@ export default function StudentsPage() {
        secondaryApp = initializeApp(config, secondaryAppName);
     }
 
-    // 3. Create User on Secondary App
     const secondaryAuth = getAuth(secondaryApp);
     const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
     
-    // 4. Cleanup: Sign out immediately & return UID
     await signOut(secondaryAuth);
     return userCredential.user.uid;
+  };
+
+  // 🔐 Helper 2: Send Password Reset Email
+  const handleResetPassword = async (email: string) => {
+    if (!email) return alert("No email found for this user.");
+    if (!confirm(`Send password reset link to ${email}?`)) return;
+
+    try {
+      const auth = getAuth(); // Uses the main app instance
+      await sendPasswordResetEmail(auth, email);
+      alert(`✅ Reset link sent successfully to ${email}`);
+    } catch (error: any) {
+      console.error(error);
+      alert("Error sending reset link: " + error.message);
+    }
   };
 
   // ➕ 2. Add Student (Auth + DB)
@@ -105,7 +115,6 @@ export default function StudentsPage() {
       // Step B: Create Database Profile linked to that UID
       const newStudentId = generateStudentId();
       
-      // ✅ FIX: Using setDoc with the correct 'doc' import from top of file
       await setDoc(doc(db, "growth_students", uid), {
         name: formData.name,
         email: formData.email,
@@ -213,6 +222,15 @@ export default function StudentsPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right flex justify-end gap-3">
+                  {/* 🆕 Reset Password Button */}
+                  <button 
+                    onClick={() => handleResetPassword(student.email)} 
+                    className="text-yellow-500 hover:text-yellow-400 transition"
+                    title="Send Password Reset Email"
+                  >
+                    <LockKeyhole size={16} />
+                  </button>
+
                   <Link href={`/admin/students/${student.id}`} className="text-blue-400 hover:text-blue-300 transition">
                     <Eye size={16} />
                   </Link>
@@ -240,6 +258,8 @@ export default function StudentsPage() {
                 <p className="text-xs text-gray-500">{s.email}</p>
               </div>
                <div className="flex gap-3">
+                {/* Mobile Reset Button */}
+                <button onClick={() => handleResetPassword(s.email)} className="text-yellow-500"><LockKeyhole size={18}/></button>
                 <Link href={`/admin/students/${s.id}`} className="text-blue-400"><Eye size={18}/></Link>
                 <button onClick={() => handleDelete(s.id)} className="text-zinc-600 hover:text-red-500"><Trash2 size={18}/></button>
               </div>

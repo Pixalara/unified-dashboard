@@ -11,9 +11,9 @@ import {
   serverTimestamp 
 } from "firebase/firestore";
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "firebase/auth";
 import { db } from "@/lib/firebase"; 
-import { Search, Trash2, Plus, X, Phone, Edit2, Mail, Lock, Building2 } from "lucide-react";
+import { Search, Trash2, Plus, X, Phone, Edit2, Mail, Lock, Building2, LockKeyhole } from "lucide-react";
 
 interface JobSeeker {
   id: string;
@@ -56,7 +56,7 @@ export default function JobsPage() {
     return () => unsubscribe();
   }, []);
 
-  // 🔐 Helper: Create Auth User (Invisible App)
+  // 🔐 Helper 1: Create Auth User (Invisible App)
   const createAuthUser = async (email: string, pass: string) => {
     const config = db.app.options; 
     const secondaryAppName = "secondaryAppJob";
@@ -72,6 +72,21 @@ export default function JobsPage() {
     const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
     await signOut(secondaryAuth);
     return userCredential.user.uid;
+  };
+
+  // 🔐 Helper 2: Send Password Reset Email
+  const handleResetPassword = async (email: string) => {
+    if (!email) return alert("No email found for this user.");
+    if (!confirm(`Send password reset link to ${email}?`)) return;
+
+    try {
+      const auth = getAuth(); // Uses the main app instance
+      await sendPasswordResetEmail(auth, email);
+      alert(`✅ Reset link sent successfully to ${email}`);
+    } catch (error: any) {
+      console.error(error);
+      alert("Error sending reset link: " + error.message);
+    }
   };
 
   // ➕ Add Candidate (Auth + DB)
@@ -223,6 +238,15 @@ export default function JobsPage() {
                   </select>
                 </td>
                 <td className="px-6 py-4 text-right flex justify-end gap-2">
+                  {/* 🆕 Reset Password Button */}
+                  <button 
+                    onClick={() => handleResetPassword(s.email)} 
+                    className="text-yellow-500 hover:bg-yellow-900/30 p-2 rounded"
+                    title="Send Password Reset Email"
+                  >
+                    <LockKeyhole size={16} />
+                  </button>
+
                   <button onClick={() => openEditModal(s)} className="text-blue-400 hover:bg-blue-900/30 p-2 rounded"><Edit2 size={16}/></button>
                   <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:bg-red-900/30 p-2 rounded"><Trash2 size={16}/></button>
                 </td>
@@ -238,7 +262,11 @@ export default function JobsPage() {
           <div key={s.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded-xl space-y-3">
              <div className="flex justify-between">
                 <h3 className="text-white font-bold">{s.name}</h3>
-                <button onClick={() => openEditModal(s)} className="text-blue-400 text-xs">Edit</button>
+                <div className="flex gap-2">
+                    {/* Mobile Reset Button */}
+                    <button onClick={() => handleResetPassword(s.email)} className="text-yellow-500 text-xs"><LockKeyhole size={16}/></button>
+                    <button onClick={() => openEditModal(s)} className="text-blue-400 text-xs">Edit</button>
+                </div>
              </div>
              <div className="flex items-center gap-2">
                 <select 
