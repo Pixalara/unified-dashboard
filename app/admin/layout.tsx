@@ -1,161 +1,125 @@
 "use client";
 
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, 
+  Users, 
   GraduationCap, 
-  Briefcase,     
+  BookOpen, 
+  Briefcase, 
   Settings, 
-  LogOut, 
-  Menu, 
-  X,
-  UserCheck,
-  BookOpen // ✅ Imported for Course Manager
+  LogOut,
+  Sparkles
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
-import { useRequireAdmin } from "@/lib/requireAdmin";
+import { useAuth } from "@/context/AuthContext"; // Assuming you have this
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { logout } = useAuth();
-  
-  const { isAuthorized, loading } = useRequireAdmin();
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading Portal...</div>;
-  if (!isAuthorized) return null;
-
-  // 🗂️ SEPARATED NAVIGATION SECTIONS
-  const navSections = [
+  const menuItems = [
     {
-      title: "Overview",
+      category: "Overview",
       items: [
-        { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+        { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard" },
       ]
     },
     {
-      title: "Growth School", 
+      category: "Growth School",
       items: [
-        { name: "Enrolled Students", href: "/admin/students", icon: GraduationCap },
-        { name: "Mentors & Faculty", href: "/admin/mentors", icon: UserCheck },
-        { name: "Course Manager", href: "/admin/courses", icon: BookOpen }, // ✅ Added Course Manager Here
+        { name: "Enrolled Students", icon: Users, href: "/admin/students" },
+        { name: "Mentors & Faculty", icon: GraduationCap, href: "/admin/mentors" },
+        { name: "Course Manager", icon: BookOpen, href: "/admin/courses" },
       ]
     },
     {
-      title: "Placement Cell", 
+      category: "Placement Cell",
       items: [
-        { name: "Candidate Pipeline", href: "/admin/jobs", icon: Briefcase },
+        // ✅ LINKED TO YOUR NEW PIPELINE PAGE
+        { name: "Candidate Pipeline", icon: Briefcase, href: "/admin/pipeline" },
       ]
     },
     {
-      title: "System",
+      category: "System",
       items: [
-        { name: "Settings", href: "/admin/settings", icon: Settings },
+        { name: "Settings", icon: Settings, href: "/admin/settings" },
       ]
     }
   ];
 
-  return (
-    <div className="min-h-screen bg-black text-gray-100 flex font-sans">
-      
-      {/* 📱 Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+  const handleLogout = async () => {
+      await logout();
+      router.push("/login");
+  };
 
-      {/* 🟢 Sidebar Navigation */}
-      <aside 
-        className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out
-          flex flex-col 
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0 md:static md:block
-        `}
-      >
-        {/* Header */}
-        <div className="p-6 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-lg font-bold text-white tracking-tight">Pixalara Admin</h1>
-            <p className="text-xs text-gray-500">Unified Management</p>
-          </div>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white">
-            <X size={24} />
-          </button>
+  return (
+    <div className="min-h-screen bg-black flex font-sans selection:bg-blue-500/30 text-gray-100">
+      
+      {/* 🟢 SIDEBAR */}
+      <aside className="w-64 border-r border-zinc-800 bg-black flex-shrink-0 fixed h-full z-10 hidden md:flex flex-col">
+        
+        {/* Brand */}
+        <div className="h-16 flex items-center px-6 border-b border-zinc-800">
+             <div className="flex items-center gap-2 text-white font-bold text-xl tracking-tight">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                    <Sparkles size={16} fill="white" />
+                </div>
+                Pixalara Admin
+             </div>
         </div>
 
-        {/* Scrollable Nav Items */}
-        <nav className="mt-2 px-4 space-y-6 flex-1 overflow-y-auto">
-          {navSections.map((section, idx) => (
-            <div key={idx}>
-              {/* SECTION HEADER */}
-              {section.title && (
-                <h3 className="px-4 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  {section.title}
-                </h3>
-              )}
-              
-              {/* LINKS */}
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link 
-                      key={item.href} 
-                      href={item.href}
-                      onClick={() => setSidebarOpen(false)}
-                      className={`
-                        flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium
-                        ${isActive 
-                          ? "bg-blue-600/10 text-blue-400 border border-blue-600/20" 
-                          : "text-gray-400 hover:bg-zinc-800 hover:text-white"
-                        }
-                      `}
-                    >
-                      <item.icon size={18} />
-                      <span>{item.name}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+        {/* Navigation */}
+        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
+            {menuItems.map((section, idx) => (
+                <div key={idx}>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-2">
+                        {section.category}
+                    </h3>
+                    <div className="space-y-1">
+                        {section.items.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                                <Link 
+                                    key={item.href} 
+                                    href={item.href}
+                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                        isActive 
+                                        ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
+                                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                                    }`}
+                                >
+                                    <item.icon size={18} />
+                                    {item.name}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
+        </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-zinc-800 shrink-0 bg-zinc-900/50">
-          <button 
-            onClick={logout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-gray-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-all text-sm font-medium"
-          >
-            <LogOut size={18} />
-            <span>Sign Out</span>
-          </button>
+        {/* Logout */}
+        <div className="p-4 border-t border-zinc-800">
+            <button 
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 w-full transition-all"
+            >
+                <LogOut size={18} />
+                Sign Out
+            </button>
         </div>
       </aside>
 
-      {/* 🔵 Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
-        
-        {/* 📱 Mobile Header */}
-        <header className="md:hidden flex items-center justify-between p-4 border-b border-zinc-800 bg-black shrink-0">
-          <h1 className="text-sm font-bold text-white uppercase tracking-wider">
-            {navSections.find(s => s.items.some(i => i.href === pathname))?.items.find(i => i.href === pathname)?.name || "Dashboard"}
-          </h1>
-          <button onClick={() => setSidebarOpen(true)} className="text-white">
-            <Menu size={24} />
-          </button>
-        </header>
-
-        {/* Content Wrapper */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-black">
-          {children}
-        </main>
+      {/* 🔵 MAIN CONTENT AREA */}
+      <div className="flex-1 md:ml-64">
+          {/* Top Bar (Mobile Toggle placeholder could go here) */}
+          <div className="p-8">
+             {children}
+          </div>
       </div>
+
     </div>
   );
 }

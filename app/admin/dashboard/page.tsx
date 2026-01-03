@@ -28,38 +28,34 @@ import Link from "next/link";
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
     students: 0,
-    jobSeekers: 0,
+    jobAspirants: 0,
     placed: 0,
     interviews: 0
   });
   const [recentStudents, setRecentStudents] = useState<any[]>([]);
   const [courseData, setCourseData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // 📱 Responsive State
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // 1. Handle Window Resize for Chart Alignment
     const handleResize = () => setIsMobile(window.innerWidth < 768);
-    handleResize(); // Check on load
+    handleResize(); 
     window.addEventListener("resize", handleResize);
 
-    // 2. Fetch Data
     async function fetchStats() {
       try {
         const studentsSnap = await getDocs(collection(db, "growth_students"));
-        const seekersSnap = await getDocs(collection(db, "job_seekers"));
+        const seekersSnap = await getDocs(collection(db, "job_seekers")); // DB Collection name stays 'job_seekers'
         
         const totalStudents = studentsSnap.size;
-        const totalSeekers = seekersSnap.size;
+        const totalAspirants = seekersSnap.size;
         
         const placedCount = seekersSnap.docs.filter(d => d.data().stage === 'placed').length;
         const interviewCount = seekersSnap.docs.filter(d => d.data().stage === 'interview').length;
 
         setStats({
             students: totalStudents,
-            jobSeekers: totalSeekers,
+            jobAspirants: totalAspirants,
             placed: placedCount,
             interviews: interviewCount
         });
@@ -104,9 +100,20 @@ export default function AdminDashboard() {
            <h1 className="text-3xl font-bold text-white">Dashboard Overview</h1>
            <p className="text-gray-400">Real-time metrics for Pixalara Growth School.</p>
         </div>
-        <Link href="/admin/students" className="bg-white text-black px-4 py-2 rounded-lg font-bold hover:bg-gray-200 transition text-center">
-            Manage Students
-        </Link>
+        
+        <div className="flex gap-3">
+             {/* ✅ BUTTON RENAMED & LINKS TO PIPELINE */}
+            <Link 
+                href="/admin/pipeline"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-500 transition flex items-center gap-2"
+            >
+                <Briefcase size={18} /> Manage Job Aspirants
+            </Link>
+
+            <Link href="/admin/students" className="bg-white text-black px-4 py-2 rounded-lg font-bold hover:bg-gray-200 transition text-center">
+                Manage Students
+            </Link>
+        </div>
       </div>
 
       {/* 📊 Metrics Grid */}
@@ -121,8 +128,9 @@ export default function AdminDashboard() {
 
           <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-xl flex items-center justify-between">
               <div>
-                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">Job Seekers</p>
-                  <h2 className="text-3xl font-bold text-white">{stats.jobSeekers}</h2>
+                  {/* ✅ RENAMED LABEL */}
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">Job Aspirants</p>
+                  <h2 className="text-3xl font-bold text-white">{stats.jobAspirants}</h2>
               </div>
               <div className="p-3 bg-purple-500/10 rounded-lg text-purple-500"><Briefcase size={24} /></div>
           </div>
@@ -146,19 +154,15 @@ export default function AdminDashboard() {
 
       {/* 📉 Charts & Lists Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Pie Chart Card */}
           <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col">
               <h3 className="text-lg font-bold text-white mb-2">Course Enrollment</h3>
-              
-              {/* Responsive Container Height: Taller on Mobile, Standard on Desktop */}
               <div className="w-full h-[400px] md:h-[350px] flex-shrink-0 -ml-4 md:ml-0">
                   <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                           <Pie
                               data={courseData}
                               cx="50%"
-                              cy={isMobile ? "30%" : "50%"} // ✅ SMART FIX: High on Mobile, Centered on Desktop
+                              cy={isMobile ? "30%" : "50%"} 
                               innerRadius={60}
                               outerRadius={80}
                               paddingAngle={5}
@@ -175,7 +179,7 @@ export default function AdminDashboard() {
                           <Legend 
                             verticalAlign="bottom" 
                             align="center"
-                            height={isMobile ? 100 : 36} // More space for legend on mobile
+                            height={isMobile ? 100 : 36} 
                             iconType="circle"
                           />
                       </PieChart>
@@ -183,13 +187,11 @@ export default function AdminDashboard() {
               </div>
           </div>
 
-          {/* Recent Students List */}
           <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-6 overflow-hidden">
               <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-bold text-white">Recent Students</h3>
                   <Link href="/admin/students" className="text-sm text-blue-400 hover:text-blue-300">View All</Link>
               </div>
-              
               <div className="space-y-4">
                   {recentStudents.map((student) => (
                       <div key={student.id} className="flex items-center justify-between p-4 bg-black/40 rounded-lg border border-zinc-800/50">
@@ -210,7 +212,6 @@ export default function AdminDashboard() {
                   {recentStudents.length === 0 && <p className="text-gray-500 text-sm">No students found.</p>}
               </div>
           </div>
-
       </div>
     </div>
   );
