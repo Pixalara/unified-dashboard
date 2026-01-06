@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-// We import Storage but wrap it in try/catch so it doesn't crash if not set up
+import { doc, updateDoc, onSnapshot } from "firebase/firestore"; 
 import { getApp } from "firebase/app"; 
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/lib/firebase"; 
@@ -27,8 +26,10 @@ import {
   Trash2,
   Check,
   Clock,
-  Link as LinkIcon, // Icon for Link
-  AlertCircle
+  Link as LinkIcon, 
+  Lock,
+  CreditCard,
+  Target // 🎯 Added Target Icon
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -65,9 +66,8 @@ export default function JobSeekerDashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
-  // 🟢 RESUME STATE
   const [resumeUrl, setResumeUrl] = useState("");
-  const [resumeType, setResumeType] = useState<"file" | "link">("link"); // Default to 'link' for safety
+  const [resumeType, setResumeType] = useState<"file" | "link">("link");
   const [uploadingResume, setUploadingResume] = useState(false);
 
   const [personal, setPersonal] = useState({ phone: "", dob: "", gender: "" });
@@ -85,24 +85,37 @@ export default function JobSeekerDashboard() {
   const [skillInput, setSkillInput] = useState(""); 
   const [customSkill, setCustomSkill] = useState(""); 
 
+  // ⚡ REAL-TIME DATA FETCHING
   useEffect(() => {
-    async function fetchProfile() {
-      if (!user) return;
-      try {
-        const docRef = doc(db, "job_seekers", user.uid);
-        const docSnap = await getDoc(docRef);
+    if (!user) return;
+    
+    const docRef = doc(db, "job_seekers", user.uid);
+    
+    // Using onSnapshot for live updates from Admin
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setSeeker(data);
+          
           if (data.education) setEducation(data.education);
           if (data.skills) setSelectedSkills(data.skills);
           if (data.experience && Array.isArray(data.experience)) setExperience(data.experience);
           if (data.resumeUrl) setResumeUrl(data.resumeUrl);
-          setPersonal({ phone: data.phone || "", dob: data.dob || "", gender: data.gender || "" });
+          
+          setPersonal(prev => ({
+             ...prev,
+             phone: data.phone || "",
+             gender: data.gender || "",
+             dob: data.dob || prev.dob 
+          }));
         }
-      } catch (err) { console.error(err); } finally { setLoading(false); }
-    }
-    fetchProfile();
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching profile:", error);
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [user]);
 
   // ✅ VALIDATION & SAVE LOGIC
@@ -110,16 +123,12 @@ export default function JobSeekerDashboard() {
     if (!user) return;
 
     const missingFields = [];
-    if (!personal.phone) missingFields.push("Phone Number");
     if (!personal.dob) missingFields.push("Date of Birth");
-    if (!personal.gender) missingFields.push("Gender");
     if (!education.college) missingFields.push("UG College");
     if (!education.degree) missingFields.push("UG Degree");
     if (!education.year) missingFields.push("UG Year");
     if (!education.cgpa) missingFields.push("UG CGPA");
     if (selectedSkills.length === 0) missingFields.push("At least 1 Skill");
-    
-    // Resume Validation
     if (!resumeUrl) missingFields.push("Resume (Link or Upload)");
 
     if (missingFields.length > 0) {
@@ -131,21 +140,17 @@ export default function JobSeekerDashboard() {
     try {
       const docRef = doc(db, "job_seekers", user.uid);
       await updateDoc(docRef, {
-        phone: personal.phone,
         dob: personal.dob,
-        gender: personal.gender,
         education: education,
         experience: experience,
         skills: selectedSkills,
-        resumeUrl: resumeUrl, // This saves the Link OR the Firebase URL
+        resumeUrl: resumeUrl, 
         lastUpdated: new Date()
       });
-      setSeeker((prev: any) => ({ ...prev, phone: personal.phone, dob: personal.dob, gender: personal.gender }));
       alert("✅ Profile Updated Successfully!");
     } catch (err) { console.error(err); alert("❌ Failed to update."); } finally { setSaving(false); }
   };
 
-  // ✅ FILE UPLOAD LOGIC (Safely wrapped)
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -227,7 +232,10 @@ export default function JobSeekerDashboard() {
       <nav className="border-b border-white/10 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white shadow-lg"><Briefcase size={16} strokeWidth={3} /></div>
+             {/* 🎯 CHANGED ICON TO TARGET HERE */}
+             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white shadow-lg">
+                <Target size={20} strokeWidth={3} />
+             </div>
              <span className="font-bold text-white tracking-tight hidden sm:block">Pixalara Career Hub</span>
           </div>
           <button onClick={() => { logout(); router.push("/login"); }} className="flex items-center gap-2 px-4 py-2 hover:bg-white/5 rounded-full text-gray-400 hover:text-white text-sm font-medium"><LogOut size={16} /> Sign Out</button>
@@ -245,13 +253,35 @@ export default function JobSeekerDashboard() {
                         {currentAvatar ? <img src={currentAvatar} alt="Avatar" className="w-full h-full object-contain p-2 animate-in fade-in zoom-in duration-500"/> : <span className="text-4xl font-bold text-gray-500">{seeker.name?.charAt(0)}</span>}
                     </div>
                     <h2 className="text-2xl font-bold text-white">{seeker.name}</h2>
-                    <p className="text-blue-400 font-medium text-sm mt-1">{seeker.highestEducation || "Student"}</p>
+                    
+                    {/* ✅ UPDATED ROLE TO JOB ASPIRANT */}
+                    <p className="text-blue-400 font-medium text-sm mt-1">Job Aspirant</p>
+                    
                     <div className="mt-6 w-full space-y-4 text-left bg-black/40 p-4 rounded-xl border border-white/5">
                         <div className="flex items-center gap-3 text-sm text-gray-300"><Mail size={16} className="text-gray-500"/> <span className="truncate">{seeker.email}</span></div>
                         <div className="flex items-center gap-3 text-sm text-gray-300"><Phone size={16} className="text-gray-500"/> <span>{personal.phone || "N/A"}</span></div>
                         <div className="flex items-center gap-3 text-sm text-gray-300"><Calendar size={16} className="text-gray-500"/> <span>{personal.dob || "N/A"}</span></div>
                         <div className="flex items-center gap-3 text-sm text-gray-300"><Briefcase size={16} className="text-gray-500"/> <span>Target: {seeker.targetField || "Not Set"}</span></div>
                     </div>
+                    
+                    {/* ✅ FEE STATUS DISPLAY */}
+                    <div className="w-full mt-4 grid grid-cols-2 gap-3">
+                         <div className={`p-3 rounded-lg border text-center ${seeker.registrationFee === 'Paid' ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                             <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Reg. Fee</p>
+                             <div className="flex items-center justify-center gap-1.5">
+                                 <CreditCard size={14} className={seeker.registrationFee === 'Paid' ? 'text-green-500' : 'text-red-400'}/>
+                                 <span className={`text-xs font-bold ${seeker.registrationFee === 'Paid' ? 'text-white' : 'text-red-200'}`}>{seeker.registrationFee || "Pending"}</span>
+                             </div>
+                         </div>
+                         <div className={`p-3 rounded-lg border text-center ${seeker.finalFee === 'Paid' ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                             <p className="text-[10px] text-gray-400 uppercase font-bold mb-1">Final Fee</p>
+                             <div className="flex items-center justify-center gap-1.5">
+                                 <CreditCard size={14} className={seeker.finalFee === 'Paid' ? 'text-green-500' : 'text-red-400'}/>
+                                 <span className={`text-xs font-bold ${seeker.finalFee === 'Paid' ? 'text-white' : 'text-red-200'}`}>{seeker.finalFee || "Pending"}</span>
+                             </div>
+                         </div>
+                    </div>
+
                 </div>
             </div>
 
@@ -260,7 +290,7 @@ export default function JobSeekerDashboard() {
                     <h3 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wider">
                         <Award size={16} className="text-blue-500"/> Application Status
                     </h3>
-                    <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20">Live</span>
+                    <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-1 rounded border border-blue-500/20">Live Updates</span>
                 </div>
                 <div className="relative pl-2 pb-2">
                     <div className="absolute left-[11px] top-3 bottom-8 w-[2px] bg-zinc-800 rounded-full"></div>
@@ -294,13 +324,40 @@ export default function JobSeekerDashboard() {
            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-8">
                <div className="flex items-center justify-between mb-6"><h3 className="text-xl font-bold text-white flex items-center gap-2"><User className="text-orange-500" /> Personal Details <span className="text-red-500 text-sm">*</span></h3></div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   
+                   {/* 🔒 LOCKED EMAIL */}
                    <div>
-                       <label className="text-xs text-gray-400 mb-1 block">Phone Number</label>
+                       <label className="text-xs text-gray-400 mb-1 block">Email ID <span className="text-[10px] text-zinc-600 ml-1">(Admin Managed)</span></label>
                        <div className="relative">
-                            <Phone className="absolute left-3 top-2.5 text-zinc-500 pointer-events-none" size={16} />
-                            <input type="tel" className="w-full bg-black border border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm focus:border-blue-500 outline-none" placeholder="+91..." value={personal.phone} onChange={(e) => setPersonal({...personal, phone: e.target.value})} />
+                            <Mail className="absolute left-3 top-2.5 text-zinc-500 pointer-events-none" size={16} />
+                            <input type="email" readOnly className="w-full bg-zinc-950/50 border border-zinc-800 rounded-lg pl-10 pr-10 py-2.5 text-gray-500 text-sm focus:border-zinc-800 outline-none cursor-not-allowed" value={seeker.email || ""} />
+                            <Lock className="absolute right-3 top-2.5 text-zinc-600 pointer-events-none" size={16} />
                        </div>
                    </div>
+
+                   {/* 🔒 LOCKED PHONE */}
+                   <div>
+                       <label className="text-xs text-gray-400 mb-1 block">Phone Number <span className="text-[10px] text-zinc-600 ml-1">(Admin Managed)</span></label>
+                       <div className="relative">
+                            <Phone className="absolute left-3 top-2.5 text-zinc-500 pointer-events-none" size={16} />
+                            <input type="tel" readOnly className="w-full bg-zinc-950/50 border border-zinc-800 rounded-lg pl-10 pr-10 py-2.5 text-gray-500 text-sm focus:border-zinc-800 outline-none cursor-not-allowed" value={personal.phone} />
+                            <Lock className="absolute right-3 top-2.5 text-zinc-600 pointer-events-none" size={16} />
+                       </div>
+                   </div>
+
+                   {/* 🔒 LOCKED GENDER */}
+                   <div>
+                       <label className="text-xs text-gray-400 mb-1 block">Gender <span className="text-[10px] text-zinc-600 ml-1">(Admin Managed)</span></label>
+                       <div className="relative">
+                            <Users className="absolute left-3 top-2.5 text-zinc-500 pointer-events-none" size={16} />
+                            <select disabled className="w-full bg-zinc-950/50 border border-zinc-800 rounded-lg pl-10 pr-10 py-2.5 text-gray-500 text-sm focus:border-zinc-800 outline-none appearance-none cursor-not-allowed" value={personal.gender}>
+                                <option value="" disabled>Select Gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
+                            </select>
+                            <Lock className="absolute right-3 top-2.5 text-zinc-600 pointer-events-none" size={16} />
+                       </div>
+                   </div>
+
+                   {/* ✏️ EDITABLE DOB */}
                    <div>
                        <label className="text-xs text-gray-400 mb-1 block">Date of Birth (DD/MM/YYYY)</label>
                        <div className="relative">
@@ -308,20 +365,10 @@ export default function JobSeekerDashboard() {
                             <input type="text" className="w-full bg-black border border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm focus:border-blue-500 outline-none" placeholder="DD/MM/YYYY" value={personal.dob} onChange={handleDobChange} maxLength={10} />
                        </div>
                    </div>
-                   <div>
-                       <label className="text-xs text-gray-400 mb-1 block">Gender</label>
-                       <div className="relative">
-                            <Users className="absolute left-3 top-2.5 text-zinc-500 pointer-events-none" size={16} />
-                            <select className="w-full bg-black border border-zinc-700 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm focus:border-blue-500 outline-none appearance-none cursor-pointer" value={personal.gender} onChange={(e) => setPersonal({...personal, gender: e.target.value})}>
-                                <option value="" disabled>Select Gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
-                            </select>
-                            <div className="absolute right-4 top-3 pointer-events-none text-zinc-500 text-xs">▼</div>
-                       </div>
-                   </div>
                </div>
            </div>
 
-           {/* 📄 RESUME SECTION (DUAL MODE FIX) */}
+           {/* RESUME SECTION */}
            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 md:p-8">
                <div className="flex items-center justify-between mb-6">
                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -330,14 +377,12 @@ export default function JobSeekerDashboard() {
                    {resumeUrl && <span className="text-xs px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20 flex items-center gap-1"><CheckCircle2 size={12}/> {resumeType === 'link' ? 'Link Added' : 'Uploaded'}</span>}
                </div>
 
-               {/* Tabs */}
                <div className="flex gap-4 mb-4 border-b border-zinc-800 pb-2">
                    <button onClick={() => setResumeType("link")} className={`text-sm font-medium pb-2 transition-colors ${resumeType === "link" ? "text-pink-500 border-b-2 border-pink-500" : "text-gray-500 hover:text-white"}`}>Paste Link (Recommended)</button>
                    <button onClick={() => setResumeType("file")} className={`text-sm font-medium pb-2 transition-colors ${resumeType === "file" ? "text-pink-500 border-b-2 border-pink-500" : "text-gray-500 hover:text-white"}`}>Upload PDF</button>
                </div>
 
                <div className="flex flex-col md:flex-row items-start gap-6">
-                   {/* Input Area */}
                    <div className="w-full md:w-2/3">
                        {resumeType === "file" ? (
                            <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer hover:bg-zinc-800/50 transition ${uploadingResume ? "border-blue-500 bg-blue-500/5 cursor-wait" : "border-zinc-700 hover:border-blue-500"}`}>
@@ -364,7 +409,6 @@ export default function JobSeekerDashboard() {
                        )}
                    </div>
 
-                   {/* Status / View */}
                    <div className="w-full md:w-1/3 flex flex-col gap-2">
                        {resumeUrl ? (
                            <a href={resumeUrl} target="_blank" rel="noopener noreferrer" className="w-full bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-medium text-center transition flex items-center justify-center gap-2 border border-zinc-700">
